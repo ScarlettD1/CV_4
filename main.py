@@ -10,6 +10,10 @@ import math
 from numba import prange, njit
 import threading
 import tkinter.ttk as ttk
+from skimage.feature import canny
+from skimage.filters import sobel
+from scipy import ndimage as ndi
+
 
 # from filters import sobel_filter_three_1, getsobel, sobel_filter_five_1, sobel_filter_seven_1, deffOfGaussian, \
 #     laplasianOfGaussian
@@ -27,7 +31,8 @@ class App:
         self.frame.grid()
         # pixelVirtual = PhotoImage(width=1, height=1)
 
-        self.image = cv2.imread("pictures/volvo.png")
+        self.newImage = 0
+        self.image = cv2.imread("pictures/tora_dora.jpg")
         self.imageOrigin = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
         self.readypic = Image.fromarray(self.imageOrigin)
 
@@ -48,6 +53,7 @@ class App:
 
         # вставляем кнопки T1
         Button(self.frame, text="Вернуть", command=self.picture_origin).grid(row=0, column=0)
+        Button(self.frame, text="canny", command=self.canny).grid(row=1, column=0)
 
         # вставляем кнопки T2
         Button(self.frame, text="Вернуть", command=self.picture_origin_2).grid(row=0, column=1)
@@ -56,7 +62,7 @@ class App:
         Button(self.frame, text="Вернуть", command=self.picture_origin_3).grid(row=0, column=3, columnspan=2)
 
         # Buttons for video
-        Button(self.frame, text="Показать", command=self.video_origin).grid(row=0, column=5, columnspan=2)
+        # Button(self.frame, text="Показать", command=self.video_origin).grid(row=0, column=5, columnspan=2)
 
         # Добавим изображение T1
         self.canvas = Canvas(self.root, height=640, width=480)
@@ -73,17 +79,17 @@ class App:
         self.a_image = self.canvas_3.create_image(0, 0, anchor='nw', image=self.photo_3)
         self.canvas_3.grid(row=2, column=2)
 
-        # Добавим video
-        self.canvas_4 = Canvas(self.root, height=640, width=480)
-        self.a_image = self.canvas_4.create_image(0, 0, anchor='nw', image=self.photo_3)
-        self.canvas_4.grid(row=2, column=3)
+        # # Добавим video
+        # self.canvas_4 = Canvas(self.root, height=640, width=480)
+        # self.a_image = self.canvas_4.create_image(0, 0, anchor='nw', image=self.photo_3)
+        # self.canvas_4.grid(row=2, column=3)
 
         self.root.mainloop()
 
     # Функции для 1 картинки
     def picture_origin(self):
         self.newImage = 0
-        self.image = cv2.imread('pictures/volvo.png')
+        self.image = cv2.imread('pictures/adele.png')
         self.readypic = Image.fromarray(cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY))
         self.photo = ImageTk.PhotoImage(self.readypic)
         self.c_image = self.canvas.create_image(0, 0, anchor='nw', image=self.photo)
@@ -95,6 +101,15 @@ class App:
         self.c_image = self.canvas.create_image(0, 0, anchor='nw', image=self.photo)
         self.canvas.grid(row=2, column=0)
 
+
+    def canny(self):
+        origin = self.imageOrigin
+        # adele_new_img = copy.deepcopy(origin)
+        adele_new_img = canny(origin / 255.)
+        adele_new_img = ndi.binary_fill_holes(adele_new_img)
+        # adele_new_img = sobel(adele_new_img)
+        self.newImage = adele_new_img
+        self.new_picture()
 
     # Функции для 2 картинки
     def picture_origin_2(self):
@@ -130,23 +145,23 @@ class App:
         self.canvas_3.grid(row=2, column=2)
 
 
-    # Functions for video
-    def video_origin(self):
-        cv2.destroyAllWindows()
-        self.video = cv2.VideoCapture("videos/Road.mp4")
-
-        while True:
-            succes, img = self.video.read()
-            new_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            # x = cv2.Sobel(new_img, cv2.CV_16S, 1, 0)
-            # y = cv2.Sobel(new_img, cv2.CV_16S, 0, 1)
-            #
-            # absX = cv2.convertScaleAbs(x)
-            # absY = cv2.convertScaleAbs(y)
-            # dst = cv2.addWeighted(absX, 0.5, absY, 0.5, 0)
-            cv2.imshow("Results", new_img)
-            if cv2.waitKey(1) & 0xFF == ord('q') | np.any(new_img) == 0:
-                break
+    # # Functions for video
+    # def video_origin(self):
+    #     cv2.destroyAllWindows()
+    #     self.video = cv2.VideoCapture("videos/Road.mp4")
+    #
+    #     while True:
+    #         succes, img = self.video.read()
+    #         new_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    #         # x = cv2.Sobel(new_img, cv2.CV_16S, 1, 0)
+    #         # y = cv2.Sobel(new_img, cv2.CV_16S, 0, 1)
+    #         #
+    #         # absX = cv2.convertScaleAbs(x)
+    #         # absY = cv2.convertScaleAbs(y)
+    #         # dst = cv2.addWeighted(absX, 0.5, absY, 0.5, 0)
+    #         cv2.imshow("Results", new_img)
+    #         if cv2.waitKey(1) & 0xFF == ord('q') | np.any(new_img) == 0:
+    #             break
 
 
 app = App()
