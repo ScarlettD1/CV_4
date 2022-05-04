@@ -4,6 +4,7 @@ import cv2 as cv2
 from PIL import Image, ImageTk, ImageEnhance
 import copy
 import time
+import matplotlib.pyplot as plt
 from scipy import ndimage, misc
 import numpy as np
 import math
@@ -32,8 +33,9 @@ class App:
         # pixelVirtual = PhotoImage(width=1, height=1)
 
         self.newImage = 0
-        self.image = cv2.imread("pictures/tora_dora.jpg")
+        self.image = cv2.imread("pictures/cat.jpg")
         self.imageOrigin = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+        self.imageOriginColored = self.image
         self.readypic = Image.fromarray(self.imageOrigin)
 
         self.video = cv2.VideoCapture("videos/Road.mp4")
@@ -54,12 +56,15 @@ class App:
         # вставляем кнопки T1
         Button(self.frame, text="Вернуть", command=self.picture_origin).grid(row=0, column=0)
         Button(self.frame, text="canny", command=self.canny).grid(row=1, column=0)
+        Button(self.frame, text="kmean", command=self.kmean).grid(row=2, column=0)
 
         # вставляем кнопки T2
         Button(self.frame, text="Вернуть", command=self.picture_origin_2).grid(row=0, column=1)
+        Button(self.frame, text="P-tile", command=self.Ptile).grid(row=1, column=1)
 
         # вставляем кнопки T3
         Button(self.frame, text="Вернуть", command=self.picture_origin_3).grid(row=0, column=3, columnspan=2)
+        Button(self.frame, text="following", command=self.following).grid(row=1, column=3, columnspan=2)
 
         # Buttons for video
         # Button(self.frame, text="Показать", command=self.video_origin).grid(row=0, column=5, columnspan=2)
@@ -89,7 +94,7 @@ class App:
     # Функции для 1 картинки
     def picture_origin(self):
         self.newImage = 0
-        self.image = cv2.imread('pictures/adele.png')
+        self.image = cv2.imread('pictures/tora_dora.jpg')
         self.readypic = Image.fromarray(cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY))
         self.photo = ImageTk.PhotoImage(self.readypic)
         self.c_image = self.canvas.create_image(0, 0, anchor='nw', image=self.photo)
@@ -101,15 +106,33 @@ class App:
         self.c_image = self.canvas.create_image(0, 0, anchor='nw', image=self.photo)
         self.canvas.grid(row=2, column=0)
 
-
     def canny(self):
-        origin = self.imageOrigin
-        # adele_new_img = copy.deepcopy(origin)
-        adele_new_img = canny(origin / 255.)
-        adele_new_img = ndi.binary_fill_holes(adele_new_img)
-        # adele_new_img = sobel(adele_new_img)
-        self.newImage = adele_new_img
+        origin = self.imageOriginColored
+        _, thresh = cv2.threshold(origin, np.mean(origin), 255, cv2.THRESH_BINARY_INV)
+        edges = cv2.dilate(cv2.Canny(thresh, 0, 255), None)
+        cnt = sorted(cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[-2], key=cv2.contourArea)[-1]
+        mask = np.zeros((origin.shape[0], origin.shape[1]), np.uint8)
+        masked = cv2.drawContours(mask, [cnt], -1, 255, -1)
+        dst = cv2.bitwise_and(origin, origin, mask=mask)
+        segmented = cv2.cvtColor(dst, cv2.COLOR_BGR2RGB)
+        self.newImage = segmented
         self.new_picture()
+
+    def kmean(self):
+        origin = self.imageOriginColored
+        k = 4
+        pixels = copy.deepcopy(origin.image_viewer.second_image_array)
+        pixel_vals = pixels.reshape(-1, 3)
+        pixel_vals = np.float32(pixel_vals)
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.85)
+        retval, labels, centers = cv2.kmeans(pixel_vals, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+        centers = np.uint8(centers)
+        segmented_data = centers[labels.flatten()]
+        segmented_image = segmented_data.reshape(pixels.shape)
+
+        self.newImage = segmented_image
+        self.new_picture()
+
 
     # Функции для 2 картинки
     def picture_origin_2(self):
@@ -129,6 +152,21 @@ class App:
         self.n_image = self.canvas_2.create_image(0, 0, anchor='nw', image=self.photo_2)
         self.canvas_2.grid(row=2, column=1)
 
+    def Ptile(self):
+        origin = self.imageOrigin
+        self.buildHistogramm()
+        t = 150
+        binary = origin > t
+        self.newImage = binary
+        self.new_picture_2()
+
+    def buildHistogramm(self):
+        origin = self.imageOrigin
+        count = np.asarray(origin)
+        fig, ax = plt.subplots()
+        ax.hist(count.ravel(), 256, density=True, facecolor='b')
+        plt.show()
+
     # Функции для 3 картинки
     def picture_origin_3(self):
         self.newImage = 0
@@ -144,6 +182,28 @@ class App:
         self.a_image = self.canvas_3.create_image(0, 0, anchor='nw', image=self.photo_3)
         self.canvas_3.grid(row=2, column=2)
 
+    def following(self):
+        origin = self.imageOrigin
+        self.buildHistogramm()
+        t = 127
+        told = 0
+        m1ar = []
+        m2ar = []
+        while told != t:
+            for i in range(origin.shape[0]):
+                for j in range(origin.shape[1]):
+                    if origin[i, j] < t:
+                        m1ar.append(origin[i, j])
+                    elif origin[i, j] > t:
+                        m2ar.append(origin[i, j])
+            told = t
+            m1 = int(np.mean(m1ar))
+            m2 = int(np.mean(m2ar))
+            t = int((m1 + m2) / 2)
+            print(t)
+        binary = origin > t
+        self.newImage = binary
+        self.new_picture_3()
 
     # # Functions for video
     # def video_origin(self):
