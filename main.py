@@ -11,6 +11,8 @@ import math
 from numba import prange, njit
 import threading
 import tkinter.ttk as ttk
+
+from scipy.signal import find_peaks
 from skimage.feature import canny
 from skimage.filters import sobel
 from scipy import ndimage as ndi
@@ -18,6 +20,8 @@ from scipy import ndimage as ndi
 
 # from filters import sobel_filter_three_1, getsobel, sobel_filter_five_1, sobel_filter_seven_1, deffOfGaussian, \
 #     laplasianOfGaussian
+from filters import histogram_parallel, adaptive_threshold_parallel_mean_element, adaptive_threshold_parallel_min_max, \
+    adaptive_threshold_parallel_median_3_3, adaptive_threshold_parallel_median_5_5
 
 
 class App:
@@ -56,15 +60,20 @@ class App:
         # вставляем кнопки T1
         Button(self.frame, text="Вернуть", command=self.picture_origin).grid(row=0, column=0)
         Button(self.frame, text="canny", command=self.canny).grid(row=1, column=0)
-        Button(self.frame, text="kmean", command=self.kmean).grid(row=2, column=0)
+        Button(self.frame, text="kmean4", command=self.kmean4).grid(row=2, column=0)
+        Button(self.frame, text="adaptive_threshold", command=self.adaptive_threshold).grid(row=3, column=0)
 
         # вставляем кнопки T2
         Button(self.frame, text="Вернуть", command=self.picture_origin_2).grid(row=0, column=1)
         Button(self.frame, text="P-tile", command=self.Ptile).grid(row=1, column=1)
+        Button(self.frame, text="kmean8", command=self.kmean8).grid(row=2, column=1)
 
         # вставляем кнопки T3
         Button(self.frame, text="Вернуть", command=self.picture_origin_3).grid(row=0, column=3, columnspan=2)
         Button(self.frame, text="following", command=self.following).grid(row=1, column=3, columnspan=2)
+        Button(self.frame, text="kmean20", command=self.kmean20).grid(row=2, column=3, columnspan=2)
+        Button(self.frame, text="originHist", command=self.buildHistogramm).grid(row=3, column=3, columnspan=2)
+        Button(self.frame, text="smoothGist", command=self.peaks).grid(row=4, column=3, columnspan=2)
 
         # Buttons for video
         # Button(self.frame, text="Показать", command=self.video_origin).grid(row=0, column=5, columnspan=2)
@@ -118,10 +127,10 @@ class App:
         self.newImage = segmented
         self.new_picture()
 
-    def kmean(self):
+    def kmean4(self):
         origin = self.imageOriginColored
         k = 4
-        pixels = copy.deepcopy(origin.image_viewer.second_image_array)
+        pixels = copy.deepcopy(origin)
         pixel_vals = pixels.reshape(-1, 3)
         pixel_vals = np.float32(pixel_vals)
         criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.85)
@@ -133,6 +142,35 @@ class App:
         self.newImage = segmented_image
         self.new_picture()
 
+    def kmean8(self):
+        origin = self.imageOriginColored
+        k = 8
+        pixels = copy.deepcopy(origin)
+        pixel_vals = pixels.reshape(-1, 3)
+        pixel_vals = np.float32(pixel_vals)
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.85)
+        retval, labels, centers = cv2.kmeans(pixel_vals, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+        centers = np.uint8(centers)
+        segmented_data = centers[labels.flatten()]
+        segmented_image = segmented_data.reshape(pixels.shape)
+
+        self.newImage = segmented_image
+        self.new_picture_2()
+
+    def kmean20(self):
+        origin = self.imageOriginColored
+        k = 20
+        pixels = copy.deepcopy(origin)
+        pixel_vals = pixels.reshape(-1, 3)
+        pixel_vals = np.float32(pixel_vals)
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.85)
+        retval, labels, centers = cv2.kmeans(pixel_vals, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+        centers = np.uint8(centers)
+        segmented_data = centers[labels.flatten()]
+        segmented_image = segmented_data.reshape(pixels.shape)
+
+        self.newImage = segmented_image
+        self.new_picture_3()
 
     # Функции для 2 картинки
     def picture_origin_2(self):
@@ -154,7 +192,6 @@ class App:
 
     def Ptile(self):
         origin = self.imageOrigin
-        self.buildHistogramm()
         t = 150
         binary = origin > t
         self.newImage = binary
@@ -165,7 +202,41 @@ class App:
         count = np.asarray(origin)
         fig, ax = plt.subplots()
         ax.hist(count.ravel(), 256, density=True, facecolor='b')
+        plt.title('Изначальная гистограмма')
+        old_peaks, _ = find_peaks(origin.ravel(), height=125)
+        print(str(old_peaks.size))
         plt.show()
+
+    def peaks(self):
+        origin = self.imageOrigin
+        origin = origin.ravel()
+        container = copy.deepcopy(origin)
+        size = container.shape[0]
+        new = histogram_parallel(container, size, container)
+        fig, ax = plt.subplots()
+        ax.hist(new, 256, density=True, facecolor='b')
+        plt.title('Сглаженная гистограмма')
+        new_peaks, _ = find_peaks(new, height=125)
+        print(str(new_peaks.size))
+        plt.show()
+
+    def adaptive_threshold(self):
+        pixels = copy.deepcopy(self.imageOriginColored)
+        height = self.imageOrigin.shape[0]
+        width = self.imageOrigin.shape[1]
+        size = 1
+        matrix_size = (2 * size) + 1
+        res_image = copy.deepcopy(pixels)
+        mean = adaptive_threshold_parallel_mean_element(pixels, height, width, matrix_size, res_image)
+        self.newImage = mean
+        self.new_picture()
+        min_max = adaptive_threshold_parallel_min_max(pixels, height, width, matrix_size, res_image)
+        self.newImage = min_max
+        self.new_picture_2()
+        median = adaptive_threshold_parallel_median_3_3(pixels, height, width, res_image)
+        self.newImage = median
+        self.new_picture_3()
+        # self.threshold_image = adaptive_threshold_parallel_median_5_5(pixels, height, width, res_image)
 
     # Функции для 3 картинки
     def picture_origin_3(self):
@@ -184,7 +255,6 @@ class App:
 
     def following(self):
         origin = self.imageOrigin
-        self.buildHistogramm()
         t = 127
         told = 0
         m1ar = []
