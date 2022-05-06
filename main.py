@@ -21,7 +21,7 @@ from scipy import ndimage as ndi
 # from filters import sobel_filter_three_1, getsobel, sobel_filter_five_1, sobel_filter_seven_1, deffOfGaussian, \
 #     laplasianOfGaussian
 from filters import histogram_parallel, adaptive_threshold_parallel_mean_element, adaptive_threshold_parallel_min_max, \
-    adaptive_threshold_parallel_median_3_3, adaptive_threshold_parallel_median_5_5
+    adaptive_threshold_parallel_median_3_3, adaptive_threshold_parallel_median_5_5, secondPeaks
 
 
 class App:
@@ -61,19 +61,22 @@ class App:
         Button(self.frame, text="Вернуть", command=self.picture_origin).grid(row=0, column=0)
         Button(self.frame, text="canny", command=self.canny).grid(row=1, column=0)
         Button(self.frame, text="kmean4", command=self.kmean4).grid(row=2, column=0)
-        Button(self.frame, text="adaptive_threshold", command=self.adaptive_threshold).grid(row=3, column=0)
+        Button(self.frame, text="adaptive_15", command=self.adaptive_threshold_15).grid(row=3, column=0)
 
         # вставляем кнопки T2
         Button(self.frame, text="Вернуть", command=self.picture_origin_2).grid(row=0, column=1)
         Button(self.frame, text="P-tile", command=self.Ptile).grid(row=1, column=1)
         Button(self.frame, text="kmean8", command=self.kmean8).grid(row=2, column=1)
+        Button(self.frame, text="adaptive_10", command=self.adaptive_threshold_10).grid(row=3, column=1)
 
         # вставляем кнопки T3
         Button(self.frame, text="Вернуть", command=self.picture_origin_3).grid(row=0, column=3, columnspan=2)
         Button(self.frame, text="following", command=self.following).grid(row=1, column=3, columnspan=2)
         Button(self.frame, text="kmean20", command=self.kmean20).grid(row=2, column=3, columnspan=2)
-        Button(self.frame, text="originHist", command=self.buildHistogramm).grid(row=3, column=3, columnspan=2)
-        Button(self.frame, text="smoothGist", command=self.peaks).grid(row=4, column=3, columnspan=2)
+        # Button(self.frame, text="originHist", command=self.buildHistogramm).grid(row=3, column=3, columnspan=2)
+        Button(self.frame, text="smoothGist", command=self.peaks).grid(row=3, column=3, columnspan=2)
+        Button(self.frame, text="adaptive_30", command=self.adaptive_threshold_30).grid(row=4, column=1)
+
 
         # Buttons for video
         # Button(self.frame, text="Показать", command=self.video_origin).grid(row=0, column=5, columnspan=2)
@@ -103,7 +106,7 @@ class App:
     # Функции для 1 картинки
     def picture_origin(self):
         self.newImage = 0
-        self.image = cv2.imread('pictures/tora_dora.jpg')
+        self.image = cv2.imread('pictures/cat.jpg')
         self.readypic = Image.fromarray(cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY))
         self.photo = ImageTk.PhotoImage(self.readypic)
         self.c_image = self.canvas.create_image(0, 0, anchor='nw', image=self.photo)
@@ -175,7 +178,7 @@ class App:
     # Функции для 2 картинки
     def picture_origin_2(self):
         self.newImage = 0
-        self.image_2 = cv2.imread('pictures/volvo.png')
+        self.image_2 = cv2.imread('pictures/cat.jpg')
         self.readypic_2 = Image.fromarray(cv2.cvtColor(self.image_2, cv2.COLOR_BGR2GRAY))
         # print("readypic_2:  ", self.readypic_2)
         self.photo_2 = ImageTk.PhotoImage(self.readypic_2)
@@ -192,7 +195,17 @@ class App:
 
     def Ptile(self):
         origin = self.imageOrigin
-        t = 150
+        count = origin.ravel()
+        pr = 0.6 * count.shape[0]
+        summ = 0
+        t = 0
+        p = np.histogram(count, 256)
+        for i in range(p[0].shape[0]):
+            summ = summ + p[0][i]
+            t = i
+            if summ > pr:
+                break
+        print(t)
         binary = origin > t
         self.newImage = binary
         self.new_picture_2()
@@ -206,34 +219,82 @@ class App:
         old_peaks, _ = find_peaks(origin.ravel(), height=125)
         print(str(old_peaks.size))
         plt.show()
+        self.newImage = origin
+        self.new_picture()
 
     def peaks(self):
+        self.buildHistogramm()
         origin = self.imageOrigin
-        origin = origin.ravel()
         container = copy.deepcopy(origin)
-        size = container.shape[0]
-        new = histogram_parallel(container, size, container)
+        new = histogram_parallel(container, container)
+        new_s = np.asarray(new).ravel()
         fig, ax = plt.subplots()
-        ax.hist(new, 256, density=True, facecolor='b')
+        ax.hist(new_s, 256, density=True, facecolor='b')
         plt.title('Сглаженная гистограмма')
-        new_peaks, _ = find_peaks(new, height=125)
+        new_peaks, _ = find_peaks(new_s, height=125)
         print(str(new_peaks.size))
         plt.show()
 
-    def adaptive_threshold(self):
+        self.newImage = new
+        self.new_picture_2()
+
+        second = secondPeaks(new)
+        self.newImage = second
+        self.new_picture_3()
+
+    def adaptive_threshold_15(self):
         pixels = copy.deepcopy(self.imageOriginColored)
         height = self.imageOrigin.shape[0]
         width = self.imageOrigin.shape[1]
         size = 1
+        t = 15
         matrix_size = (2 * size) + 1
         res_image = copy.deepcopy(pixels)
-        mean = adaptive_threshold_parallel_mean_element(pixels, height, width, matrix_size, res_image)
+        mean = adaptive_threshold_parallel_mean_element(t, pixels, height, width, matrix_size, res_image)
         self.newImage = mean
         self.new_picture()
-        min_max = adaptive_threshold_parallel_min_max(pixels, height, width, matrix_size, res_image)
+        min_max = adaptive_threshold_parallel_min_max(t, pixels, height, width, matrix_size, res_image)
         self.newImage = min_max
         self.new_picture_2()
-        median = adaptive_threshold_parallel_median_3_3(pixels, height, width, res_image)
+        median = adaptive_threshold_parallel_median_3_3(t, pixels, height, width, res_image)
+        self.newImage = median
+        self.new_picture_3()
+        # self.threshold_image = adaptive_threshold_parallel_median_5_5(pixels, height, width, res_image)
+
+    def adaptive_threshold_10(self):
+        pixels = copy.deepcopy(self.imageOriginColored)
+        height = self.imageOrigin.shape[0]
+        width = self.imageOrigin.shape[1]
+        size = 1
+        t = 10
+        matrix_size = (2 * size) + 1
+        res_image = copy.deepcopy(pixels)
+        mean = adaptive_threshold_parallel_mean_element(t, pixels, height, width, matrix_size, res_image)
+        self.newImage = mean
+        self.new_picture()
+        min_max = adaptive_threshold_parallel_min_max(t, pixels, height, width, matrix_size, res_image)
+        self.newImage = min_max
+        self.new_picture_2()
+        median = adaptive_threshold_parallel_median_3_3(t, pixels, height, width, res_image)
+        self.newImage = median
+        self.new_picture_3()
+        # self.threshold_image = adaptive_threshold_parallel_median_5_5(pixels, height, width, res_image)
+
+    def adaptive_threshold_30(self):
+        pixels = copy.deepcopy(self.imageOriginColored)
+        height = self.imageOrigin.shape[0]
+        width = self.imageOrigin.shape[1]
+        size = 1
+        t = 30
+        matrix_size = (2 * size) + 1
+        res_image = copy.deepcopy(pixels)
+        mean = adaptive_threshold_parallel_mean_element(t, pixels, height, width, matrix_size, res_image)
+        self.newImage = mean
+        self.new_picture()
+        min_max = adaptive_threshold_parallel_min_max(t, pixels, height, width, matrix_size, res_image)
+        self.newImage = min_max
+        self.new_picture_2()
+        median = adaptive_threshold_parallel_median_3_3(t, pixels, height, width, res_image)
         self.newImage = median
         self.new_picture_3()
         # self.threshold_image = adaptive_threshold_parallel_median_5_5(pixels, height, width, res_image)
@@ -241,7 +302,7 @@ class App:
     # Функции для 3 картинки
     def picture_origin_3(self):
         self.newImage = 0
-        self.image_3 = cv2.imread('pictures/volvo.png')
+        self.image_3 = cv2.imread('pictures/cat.jpg')
         self.readypic_3 = Image.fromarray(cv2.cvtColor(self.image_3, cv2.COLOR_BGR2GRAY))
         self.photo_3 = ImageTk.PhotoImage(self.readypic_3)
         self.a_image = self.canvas_3.create_image(0, 0, anchor='nw', image=self.photo_3)
